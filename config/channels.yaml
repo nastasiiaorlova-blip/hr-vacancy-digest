@@ -1,0 +1,52 @@
+# Источники Telegram.
+#
+# channels — чистые ленты вакансий, один пост = одна вакансия, шума мало.
+# chats    — вакансии вперемешку с обсуждениями; подключать на этапе 6,
+#            когда на каналах видно, что фильтры отсекают правильно.
+#
+# enabled: false — источник в конфиге есть, но не опрашивается.
+
+channels:
+  # HR-направление
+  - name: hrhubvacancy
+  - name: hrhubvacancy300
+  - name: job_in_hr
+  - name: work_hr
+  - name: forhr
+  - name: HRTech_Jobs
+  - name: HR_Analytics_Jobs
+
+  # Общие и руководящие
+  - name: forchiefs
+  - name: toplevel_job
+  - name: horseatwork
+  - name: rudakovahr
+  - name: TheyPayWell
+  - name: vacanciesbest
+  - name: hmoffice
+  - name: talentedpeoples
+
+  # Каналы сообществ
+  - name: rff_channel
+  - name: vacancyCRC
+  - name: jobs_vacancy_cv
+
+chats:
+  - name: rff_chat
+    enabled: false
+  - name: hrkhabcommunity
+    enabled: false
+  - name: HRatWork
+    enabled: false
+  - name: hr_friends
+    enabled: false
+  - name: hr_recrute
+    enabled: false
+  - name: HRclubvacancies
+    enabled: false
+  - name: chat_HRAcademy_AleinikMary
+    enabled: false
+  - name: helloworldagencyfaq
+    enabled: false
+  - name: ITrecruiters_community
+    enabled: false
