@@ -6,7 +6,6 @@ from core.filters import apply_filters
 from core.models import Vacancy
 from core.sender import send_digest
 from core.storage import filter_unseen, mark_seen
-from sources import hh
 
 
 def _load_dotenv(path: str = ".env") -> None:
@@ -23,7 +22,10 @@ def _load_dotenv(path: str = ".env") -> None:
             os.environ.setdefault(key.strip(), value.strip())
 
 
-SOURCES = [("hh", hh.fetch)]
+# hh.ru закрыл соискательский API 15.12.2025 — адаптер оставлен на случай,
+# если доступ вернут, но из конвейера исключён: иначе дайджест каждый день
+# сообщал бы о недоступном источнике.
+SOURCES: list[tuple[str, object]] = []
 
 
 def collect() -> tuple[list[Vacancy], list[str]]:
