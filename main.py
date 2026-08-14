@@ -29,12 +29,12 @@ def _load_dotenv(path: str = ".env") -> None:
 SOURCES = [("telegram", tg_web.fetch)]
 
 
-def collect() -> tuple[list[Vacancy], list[str]]:
+def collect(days: int) -> tuple[list[Vacancy], list[str]]:
     vacancies: list[Vacancy] = []
     errors: list[str] = []
     for name, fetch in SOURCES:
         try:
-            vacancies.extend(fetch())
+            vacancies.extend(fetch(days))
         except Exception as exc:
             print(f"источник {name} недоступен: {exc}", file=sys.stderr)
             errors.append(name)
@@ -43,7 +43,10 @@ def collect() -> tuple[list[Vacancy], list[str]]:
 
 def main() -> None:
     _load_dotenv()
-    vacancies, errors = collect()
+    # DIGEST_DAYS нужен для первого запуска: даёт посмотреть выдачу за две
+    # недели вместо суток. В обычном режиме переменная не задаётся.
+    days = int(os.environ.get("DIGEST_DAYS", "1"))
+    vacancies, errors = collect(days)
     vacancies = apply_filters(vacancies)
     vacancies = filter_unseen(vacancies)
     messages = build_digest(vacancies, errors)

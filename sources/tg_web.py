@@ -20,8 +20,10 @@ CHANNELS_CONFIG = Path(__file__).resolve().parent.parent / "config" / "channels.
 USER_AGENT = "Mozilla/5.0 (compatible; hr-vacancy-digest/1.0)"
 
 # Превью отдаёт около 20 последних постов за раз. Если канал успел написать больше
-# за сутки, добираем предыдущие страницы — но не бесконечно.
-MAX_PAGES = 5
+# за период, добираем предыдущие страницы — но не бесконечно.
+PAGES_PER_DAY = 2
+MIN_PAGES = 5
+MAX_PAGES = 30
 
 REMOTE_MARKERS = [
     "удалён", "удален", "удалёнк", "удаленк", "remote", "из любой точки",
@@ -165,10 +167,10 @@ def _parse_page(html: str, channel: str, cutoff: datetime) -> tuple[list[Vacancy
     return vacancies, oldest_id, all_fresh
 
 
-def fetch_channel(channel: str, cutoff: datetime) -> list[Vacancy]:
+def fetch_channel(channel: str, cutoff: datetime, max_pages: int = MIN_PAGES) -> list[Vacancy]:
     vacancies: list[Vacancy] = []
     before = None
-    for _ in range(MAX_PAGES):
+    for _ in range(max_pages):
         html = _fetch_html(channel, before)
         page_vacancies, oldest_id, all_fresh = _parse_page(html, channel, cutoff)
         vacancies.extend(page_vacancies)
@@ -180,14 +182,19 @@ def fetch_channel(channel: str, cutoff: datetime) -> list[Vacancy]:
     return vacancies
 
 
-def fetch() -> list[Vacancy]:
-    cutoff = datetime.now(timezone.utc) - timedelta(days=1)
+def fetch(days: int = 1) -> list[Vacancy]:
+    """days — за сколько последних суток собирать посты.
+
+    Обычный режим — 1. Большее окно нужно для первого запуска, чтобы
+    посмотреть на выдачу за две недели, а не за одни сутки."""
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    max_pages = min(max(MIN_PAGES, days * PAGES_PER_DAY), MAX_PAGES)
     vacancies: list[Vacancy] = []
     failed: list[str] = []
 
     for channel in _load_sources():
         try:
-            vacancies.extend(fetch_channel(channel, cutoff))
+            vacancies.extend(fetch_channel(channel, cutoff, max_pages))
         except Exception as exc:
             # Падение одного канала не должно ронять весь запуск.
             print(f"канал {channel} недоступен: {exc}")
