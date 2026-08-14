@@ -1,0 +1,51 @@
+name: Дайджест вакансий
+
+on:
+  schedule:
+    # 06:00 UTC = 09:00 MSK. GitHub задерживает запуски по расписанию
+    # на 5-20 минут при нагрузке — гарантированной минутной точности нет.
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+# Нужны для коммита seen.db обратно в репозиторий.
+permissions:
+  contents: write
+
+# Два одновременных запуска писали бы в seen.db наперегонки.
+concurrency:
+  group: digest
+  cancel-in-progress: false
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Установить зависимости
+        run: pip install -r requirements.txt
+
+      - name: Собрать и отправить дайджест
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python main.py
+
+      - name: Сохранить показанные вакансии
+        # Только если отправка прошла успешно: иначе вакансии будут
+        # помечены как показанные и потеряны навсегда.
+        run: |
+          if [[ -z "$(git status --porcelain seen.db)" ]]; then
+            echo "seen.db не изменился, коммитить нечего"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add seen.db
+          git commit -m "Обновить список показанных вакансий"
+          git push
