@@ -13,25 +13,16 @@
 
 import sys
 
-from core import filters
+from core.filters import FILTER_STAGES
 from core.models import Vacancy
-from sources import tg_web
-
-# Шаги в том же порядке, в каком их применяет apply_filters.
-STAGES = [
-    ("не похоже на вакансию", filters.vacancy_marker_filter),
-    ("резюме соискателя", filters.resume_filter),
-    ("не по направлению", filters.relevance_filter),
-    ("не тот регион", filters.geo_filter),
-    ("стоп-слово в названии", filters.stopword_filter),
-]
+from main import collect
 
 
 def classify(vacancies: list[Vacancy]) -> tuple[list[Vacancy], dict[str, list[Vacancy]]]:
     """Прогоняет вакансии по шагам, запоминая, на каком каждая отсеялась."""
     survivors = vacancies
     dropped: dict[str, list[Vacancy]] = {}
-    for name, stage in STAGES:
+    for name, stage in FILTER_STAGES:
         after = stage(survivors)
         kept_ids = {v.id for v in after}
         dropped[name] = [v for v in survivors if v.id not in kept_ids]
@@ -47,11 +38,14 @@ def main() -> None:
             days = int(arg)
 
     print(f"Собираю посты за последние {days} сут...\n")
-    vacancies = tg_web.fetch(days)
+    vacancies, errors = collect(days)
+    if errors:
+        print("недоступные источники:", ", ".join(errors))
+        print()
     survivors, dropped = classify(vacancies)
 
     print(f"{'ВСЕГО ПОСТОВ':<28} {len(vacancies)}")
-    for name, _ in STAGES:
+    for name, _ in FILTER_STAGES:
         print(f"  отсеяно «{name}»{'':<{max(0, 8 - len(name))}} {len(dropped[name])}")
     print(f"{'ПРОШЛО ВСЁ':<28} {len(survivors)}\n")
 
@@ -64,8 +58,9 @@ def main() -> None:
 
     # Отсеянное на раннем шаге — почти всегда очевидный мусор, его не показываем
     # без --all. Интересны те, что дошли до содержательных фильтров.
-    interesting = ["резюме соискателя", "не по направлению", "не тот регион", "стоп-слово в названии"]
-    shown = STAGES if show_all else [(n, s) for n, s in STAGES if n in interesting]
+    interesting = ["резюме соискателя", "не по направлению", "подбор как основная работа",
+                   "не тот регион", "стоп-слово в названии"]
+    shown = FILTER_STAGES if show_all else [(n, f) for n, f in FILTER_STAGES if n in interesting]
 
     for name, _ in shown:
         items = dropped[name]

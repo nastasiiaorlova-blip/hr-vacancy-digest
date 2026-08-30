@@ -272,17 +272,22 @@ def resume_filter(vacancies: list[Vacancy]) -> list[Vacancy]:
     return result
 
 
+# Порядок шагов конвейера и человеческие названия причин отсева.
+# Единственное место, где он задан: и apply_filters, и review.py берут его
+# отсюда. Раньше список был продублирован, и review.py молча отстал на два
+# фильтра, показывая неверную картину.
+FILTER_STAGES = [
+    ("не похоже на вакансию", vacancy_marker_filter),
+    ("резюме соискателя", resume_filter),
+    ("не по направлению", relevance_filter),
+    ("подбор как основная работа", recruiting_filter),
+    ("не тот регион", geo_filter),
+    ("стоп-слово в названии", stopword_filter),
+]
+
+
 def apply_filters(vacancies: list[Vacancy]) -> list[Vacancy]:
-    """Порядок: похоже ли на вакансию → не резюме → релевантность →
-    не ручной подбор → гео → стоп-слова → вайтлист-исключение."""
-    return stopword_filter(
-        geo_filter(
-            recruiting_filter(
-                relevance_filter(
-                    resume_filter(
-                        vacancy_marker_filter(vacancies)
-                    )
-                )
-            )
-        )
-    )
+    """Прогоняет вакансии по всем шагам в порядке FILTER_STAGES."""
+    for _, stage in FILTER_STAGES:
+        vacancies = stage(vacancies)
+    return vacancies
