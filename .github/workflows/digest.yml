@@ -2,15 +2,24 @@ name: Дайджест вакансий
 
 on:
   schedule:
-    # 06:00 UTC = 09:00 MSK. GitHub задерживает запуски по расписанию
-    # на 5-20 минут при нагрузке — гарантированной минутной точности нет.
+    # 06:00 UTC = 09:00 MSK — основной дайджест.
+    # 07:00 UTC = 10:00 MSK — подработка.
+    # GitHub задерживает запуски по расписанию на 5-20 минут при нагрузке,
+    # гарантированной минутной точности нет.
     - cron: "0 6 * * *"
+    - cron: "0 7 * * *"
   workflow_dispatch:
     inputs:
       days:
         description: "За сколько последних суток собирать (по умолчанию 1)"
         required: false
         default: "1"
+      stream:
+        description: "Какой поток отправить"
+        required: false
+        type: choice
+        options: ["both", "main", "gigs"]
+        default: "both"
 
 # Нужны для коммита seen.db обратно в репозиторий.
 permissions:
@@ -51,6 +60,8 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           # По расписанию inputs пустой — main.py возьмёт значение по умолчанию.
           DIGEST_DAYS: ${{ inputs.days }}
+          # По расписанию inputs пустой, поток выбирается по времени запуска.
+          DIGEST_STREAM: ${{ inputs.stream || (github.event.schedule == '0 7 * * *' && 'gigs' || 'main') }}
         run: python main.py
 
       - name: Сохранить показанные вакансии

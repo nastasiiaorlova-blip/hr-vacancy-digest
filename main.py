@@ -62,19 +62,24 @@ def main() -> None:
     # `or` вместо значения по умолчанию: при запуске по расписанию GitHub
     # подставляет в inputs пустую строку, и int("") уронил бы весь прогон.
     days = int(os.environ.get("DIGEST_DAYS") or 1)
-    vacancies, errors = collect(days)
-    vacancies = apply_filters(vacancies)
-    vacancies = filter_unseen(vacancies)
-    send_digest(build_digest(vacancies, errors))
-    mark_seen(vacancies)
+    # Потоки идут по разному расписанию: основной в 09:00, подработка в 10:00.
+    # При ручном запуске без переменной выполняются оба.
+    stream = os.environ.get("DIGEST_STREAM") or "both"
 
-    # Второе сообщение — подработка. Отправляется даже пустым: молчание
-    # неотличимо от поломки.
-    gigs, gig_errors = collect(days, GIG_SOURCES)
-    gigs = apply_gig_filters(gigs)
-    gigs = filter_unseen(gigs)
-    send_digest(build_digest(gigs, gig_errors, header="Подработка"))
-    mark_seen(gigs)
+    if stream in ("main", "both"):
+        vacancies, errors = collect(days)
+        vacancies = apply_filters(vacancies)
+        vacancies = filter_unseen(vacancies)
+        send_digest(build_digest(vacancies, errors))
+        mark_seen(vacancies)
+
+    if stream in ("gigs", "both"):
+        # Отправляется даже пустым: молчание неотличимо от поломки.
+        gigs, gig_errors = collect(days, GIG_SOURCES)
+        gigs = apply_gig_filters(gigs)
+        gigs = filter_unseen(gigs)
+        send_digest(build_digest(gigs, gig_errors, header="Подработка"))
+        mark_seen(gigs)
 
 
 if __name__ == "__main__":
