@@ -17,6 +17,7 @@ from datetime import datetime, timedelta, timezone
 from bs4 import BeautifulSoup
 
 from core.filters import relevance_filter
+from core.geo import looks_remote, looks_target_city
 from core.models import Vacancy
 
 USER_AGENT = (
@@ -36,8 +37,7 @@ SEARCH_QUERIES = [
     "управление талантами",
 ]
 
-REMOTE_MARKERS = ["удалён", "удален", "удалёнк", "удаленк", "remote", "дистанционн"]
-CITY_MARKERS = ["нижний новгород", "нижнем новгороде", "нижегородск"]
+# Признаки удалёнки и региона — в core/geo.py, общие для всех источников.
 
 MONTHS = {
     "января": 1, "февраля": 2, "марта": 3, "апреля": 4, "мая": 5, "июня": 6,
@@ -58,15 +58,11 @@ def _vacancy_id(source: str, url: str) -> str:
 
 
 def _detect_remote(*texts: str) -> bool:
-    haystack = " ".join(t for t in texts if t).lower()
-    return any(marker in haystack for marker in REMOTE_MARKERS)
+    return looks_remote(*texts)
 
 
 def _detect_city(*texts: str) -> str | None:
-    haystack = " ".join(t for t in texts if t).lower()
-    if any(marker in haystack for marker in CITY_MARKERS):
-        return "Нижний Новгород"
-    return None
+    return "Нижний Новгород" if looks_target_city(*texts) else None
 
 
 # Глобал52 пишет это вместо пустого поля.

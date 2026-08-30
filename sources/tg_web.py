@@ -14,6 +14,7 @@ from pathlib import Path
 import yaml
 from bs4 import BeautifulSoup
 
+from core.geo import looks_remote, looks_target_city
 from core.models import Vacancy
 
 CHANNELS_CONFIG = Path(__file__).resolve().parent.parent / "config" / "channels.yaml"
@@ -25,12 +26,6 @@ PAGES_PER_DAY = 2
 MIN_PAGES = 5
 MAX_PAGES = 30
 
-REMOTE_MARKERS = [
-    "удалён", "удален", "удалёнк", "удаленк", "remote", "из любой точки",
-    "дистанционн", "можно из любого города",
-]
-# Маркер "нн " не добавлять: слишком широкий, ловит случайные совпадения в тексте.
-CITY_MARKERS = ["нижний новгород", "нижнем новгороде", "нижнего новгорода", "нижегородск"]
 
 SALARY_PATTERN = re.compile(
     r"(?:от|до|вилка|доход|зарплата|з/п|оклад)[^\n]{0,40}?"
@@ -103,10 +98,8 @@ def _extract_salary(text: str) -> str | None:
 
 def _detect_geo(text: str) -> tuple[str | None, bool]:
     """Гео из неструктурированного текста: (город, удалёнка)."""
-    lowered = text.lower()
-    remote = any(marker in lowered for marker in REMOTE_MARKERS)
-    city = "Нижний Новгород" if any(m in lowered for m in CITY_MARKERS) else None
-    return city, remote
+    city = "Нижний Новгород" if looks_target_city(text) else None
+    return city, looks_remote(text)
 
 
 def _parse_page(html: str, channel: str, cutoff: datetime) -> tuple[list[Vacancy], str | None, bool]:

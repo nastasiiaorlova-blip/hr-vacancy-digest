@@ -28,6 +28,13 @@ _URL = re.compile(r"https?://\S+")
 _HASHTAG = re.compile(r"[#@][\w_]+")
 _NOT_WORD = re.compile(r"[^0-9a-zа-яё ]+")
 _SPACES = re.compile(r"\s+")
+NEWLINE = chr(10)
+# Строка вида «м. Москва, м. Международная» или «г Нижний Новгород, ул Аэродромная».
+ADDRESS_LINE = re.compile(
+    r"^(?:г|гор|город|м|мкр|ул|улица|пр-кт|проспект|обл|область|россия|"
+    r"нижегородская)[.,\s]",
+    re.IGNORECASE,
+)
 
 
 def fingerprint(vacancy: Vacancy) -> str:
@@ -40,6 +47,13 @@ def fingerprint(vacancy: Vacancy) -> str:
     По названию сравнивать нельзя: «HR менеджер» — это разные вакансии
     у разных компаний, проверено на живых данных."""
     base = vacancy.raw_text or f"{vacancy.title} {vacancy.company or ''}"
+    # Строки с адресом выбрасываем: одно и то же объявление часто размножают
+    # по городам, меняя только адрес. «Менеджер интернет-магазина (подработка)»
+    # висел отдельно для Москвы и Петербурга при одинаковом тексте.
+    base = NEWLINE.join(
+        line for line in base.split(NEWLINE)
+        if not ADDRESS_LINE.match(line.strip())
+    )
     # Неразрывные пробелы и эмодзи вычистит _NOT_WORD.
     text = base.lower()
     text = _URL.sub(" ", text)
