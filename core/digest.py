@@ -18,7 +18,8 @@ def _format_line(vacancy: Vacancy) -> str:
     return " · ".join(parts)
 
 
-def build_digest(vacancies: list[Vacancy], errors: list[str] | None = None) -> list[str]:
+def build_digest(vacancies: list[Vacancy], errors: list[str] | None = None,
+                 header: str | None = None) -> list[str]:
     """Собирает текст дайджеста. Возвращает список сообщений
     (может быть больше одного, если превышен лимит Telegram)."""
     if not vacancies:
@@ -37,6 +38,9 @@ def build_digest(vacancies: list[Vacancy], errors: list[str] | None = None) -> l
             )
             lines = [f"<b>{source}</b>"] + [_format_line(v) for v in group]
             blocks.append("\n".join(lines))
+
+    if header:
+        blocks.insert(0, f"<b>{header}</b>")
 
     if errors:
         blocks.append("\n".join(f"⚠️ источник {name} недоступен" for name in errors))

@@ -95,11 +95,16 @@ def fetch_rabota(days: int = 1) -> list[Vacancy]:
     Дата публикации в карточке не выводится, поэтому `days` здесь не влияет:
     отсев повторов делает хранилище. На первом запуске придёт всё, что сейчас
     висит по запросам, дальше — только новое."""
+    return _fetch_rabota_by_queries(SEARCH_QUERIES, "site:rabota", enrich=True)
+
+
+def _fetch_rabota_by_queries(queries: list[str], source: str,
+                            enrich: bool = False) -> list[Vacancy]:
     vacancies: list[Vacancy] = []
     seen_urls: set[str] = set()
 
     failed_queries = []
-    for query in SEARCH_QUERIES:
+    for query in queries:
         url = f"{RABOTA_BASE}/vacancy?query={urllib.parse.quote(query)}"
         try:
             soup = BeautifulSoup(_get(url), "html.parser")
@@ -129,8 +134,8 @@ def fetch_rabota(days: int = 1) -> list[Vacancy]:
             salary = _text(card, ".vacancy-preview-card__salary")
 
             vacancies.append(Vacancy(
-                id=_vacancy_id("site:rabota", vacancy_url),
-                source="site:rabota",
+                id=_vacancy_id(source, vacancy_url),
+                source=source,
                 title=title,
                 company=_clean(company),
                 city=_detect_city(location),
@@ -138,12 +143,14 @@ def fetch_rabota(days: int = 1) -> list[Vacancy]:
                 url=vacancy_url,
                 salary=_clean(salary),
                 published_at=None,
-                raw_text=f"{title}\n{description}",
+                # Адрес обязательно в тексте: по нему отбирается подработка
+                # рядом с домом, а поле city хранит только город.
+                raw_text=f"{title}\n{location}\n{description}",
             ))
     if failed_queries and not vacancies:
         # Ни один запрос не прошёл — это отказ источника, а не пустая выдача.
         raise RuntimeError(f"ни один поисковый запрос не выполнен: {failed_queries}")
-    return _enrich_rabota(vacancies)
+    return _enrich_rabota(vacancies) if enrich else vacancies
 
 
 def _enrich_rabota(vacancies: list[Vacancy]) -> list[Vacancy]:
@@ -165,6 +172,20 @@ def _enrich_rabota(vacancies: list[Vacancy]) -> list[Vacancy]:
         if body:
             vacancy.raw_text = body.get_text("\n", strip=True)
     return vacancies
+
+
+GIG_QUERIES = [
+    "подработка", "частичная занятость", "неполный день",
+    "менеджер интернет-магазина", "расклейщик", "сборщик заказов",
+    "квиз", "ведущий мероприятий",
+]
+
+
+def fetch_rabota_gigs(days: int = 1) -> list[Vacancy]:
+    """Подработка на Работа.ру — отдельный поток со своими запросами.
+
+    Отбор делают фильтры из core/gig_filters.py: здесь только сбор."""
+    return _fetch_rabota_by_queries(GIG_QUERIES, "site:rabota-gig")
 
 
 # ---------------------------------------------------------------- Глобал52
@@ -197,6 +218,14 @@ def _parse_global52_detail(html: str) -> dict:
     soup = BeautifulSoup(html, "html.parser")
     body = soup.select_one("article, main") or soup.body
     text = body.get_text("\n", strip=True) if body else ""
+
+    # Страница вакансии продолжается лентой соседних объявлений. Без обрезки
+    # в raw_text попадает чужой текст, и фильтры видят слова из другой вакансии.
+    for boundary in ("Отправить отклик", "Читать далее"):
+        cut = text.find(boundary)
+        if cut > 0:
+            text = text[:cut]
+            break
 
     fields = {}
     lines = text.split("\n")

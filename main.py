@@ -6,7 +6,8 @@ from core.filters import apply_filters
 from core.models import Vacancy
 from core.sender import send_digest
 from core.storage import filter_unseen, mark_seen
-from sources import sites, tg_web
+from core.gig_filters import apply_gig_filters
+from sources import fl, sites, tg_web
 
 
 def _load_dotenv(path: str = ".env") -> None:
@@ -32,11 +33,20 @@ SOURCES = [
     ("site:global52", sites.fetch_global52),
 ]
 
+# Подработка — отдельный поток: свои источники, свои фильтры, своё сообщение.
+# Смешивать нельзя: там отбор узкий по направлению, здесь широкий с отсевом
+# явных «нет».
+GIG_SOURCES = [
+    ("подработка:rabota", sites.fetch_rabota_gigs),
+    ("подработка:fl", fl.fetch),
+    ("подработка:global52", sites.fetch_global52),
+]
 
-def collect(days: int) -> tuple[list[Vacancy], list[str]]:
+
+def collect(days: int, sources=None) -> tuple[list[Vacancy], list[str]]:
     vacancies: list[Vacancy] = []
     errors: list[str] = []
-    for name, fetch in SOURCES:
+    for name, fetch in (SOURCES if sources is None else sources):
         try:
             vacancies.extend(fetch(days))
         except Exception as exc:
@@ -55,9 +65,16 @@ def main() -> None:
     vacancies, errors = collect(days)
     vacancies = apply_filters(vacancies)
     vacancies = filter_unseen(vacancies)
-    messages = build_digest(vacancies, errors)
-    send_digest(messages)
+    send_digest(build_digest(vacancies, errors))
     mark_seen(vacancies)
+
+    # Второе сообщение — подработка. Отправляется даже пустым: молчание
+    # неотличимо от поломки.
+    gigs, gig_errors = collect(days, GIG_SOURCES)
+    gigs = apply_gig_filters(gigs)
+    gigs = filter_unseen(gigs)
+    send_digest(build_digest(gigs, gig_errors, header="Подработка"))
+    mark_seen(gigs)
 
 
 if __name__ == "__main__":
