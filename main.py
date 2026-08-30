@@ -45,7 +45,9 @@ def main() -> None:
     _load_dotenv()
     # DIGEST_DAYS нужен для первого запуска: даёт посмотреть выдачу за две
     # недели вместо суток. В обычном режиме переменная не задаётся.
-    days = int(os.environ.get("DIGEST_DAYS", "1"))
+    # `or` вместо значения по умолчанию: при запуске по расписанию GitHub
+    # подставляет в inputs пустую строку, и int("") уронил бы весь прогон.
+    days = int(os.environ.get("DIGEST_DAYS") or 1)
     vacancies, errors = collect(days)
     vacancies = apply_filters(vacancies)
     vacancies = filter_unseen(vacancies)

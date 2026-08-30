@@ -6,6 +6,11 @@ on:
     # на 5-20 минут при нагрузке — гарантированной минутной точности нет.
     - cron: "0 6 * * *"
   workflow_dispatch:
+    inputs:
+      days:
+        description: "За сколько последних суток собирать (по умолчанию 1)"
+        required: false
+        default: "1"
 
 # Нужны для коммита seen.db обратно в репозиторий.
 permissions:
@@ -37,6 +42,8 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # По расписанию inputs пустой — main.py возьмёт значение по умолчанию.
+          DIGEST_DAYS: ${{ inputs.days }}
         run: python main.py
 
       - name: Сохранить показанные вакансии
