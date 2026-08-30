@@ -21,6 +21,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Полная история нужна для rebase при повторной попытке push.
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -48,4 +51,7 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add seen.db
           git commit -m "Обновить список показанных вакансий"
-          git push
+          # Дайджест уже отправлен. Если push не пройдёт, seen.db не сохранится
+          # и завтра те же вакансии придут повторно — поэтому одна повторная
+          # попытка поверх чужих коммитов.
+          git push || (git pull --rebase && git push)
