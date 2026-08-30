@@ -38,6 +38,11 @@ jobs:
       - name: Установить зависимости
         run: pip install -r requirements.txt
 
+      # Ломаный фильтр разошлёт мусор и пометит его показанным — вернуть
+      # такие вакансии будет уже нельзя. Лучше упасть до отправки.
+      - name: Проверить фильтры
+        run: python tests/test_filters.py
+
       - name: Собрать и отправить дайджест
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
