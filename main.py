@@ -7,6 +7,7 @@ from core.models import Vacancy
 from core.sender import send_digest
 from core.storage import filter_unseen, mark_seen
 from core.gig_filters import apply_gig_filters
+from core.scam_flags import mark_duplicated_employers, scam_reasons
 from sources import fl, sites, tg_web
 
 
@@ -78,7 +79,18 @@ def main() -> None:
         gigs, gig_errors = collect(days, GIG_SOURCES)
         gigs = apply_gig_filters(gigs)
         gigs = filter_unseen(gigs)
-        send_digest(build_digest(gigs, gig_errors, header="Подработка"))
+        # Описания догружаем только для отобранных: признаки сомнительных
+        # объявлений нельзя оценить по рекламной аннотации из карточки.
+        sites.enrich_details(gigs)
+        # Подработку помечаем признаками сомнительных объявлений, но не выбрасываем:
+        # решение остаётся за владельцем, а ошибочный ярлык хуже его отсутствия.
+        duplicated = mark_duplicated_employers(gigs)
+        flags = {
+            v.id: scam_reasons(v) + duplicated.get(v.id, [])
+            for v in gigs
+        }
+        send_digest(build_digest(gigs, gig_errors, header="Подработка",
+                                 flags={k: r for k, r in flags.items() if r}))
         mark_seen(gigs)
 
 

@@ -149,6 +149,27 @@ def _fetch_rabota_by_queries(queries: list[str], source: str,
     return _enrich_rabota(vacancies) if enrich else vacancies
 
 
+def enrich_details(vacancies: list[Vacancy]) -> list[Vacancy]:
+    """Догружает описания для готового короткого списка.
+
+    Нужна признакам сомнительных объявлений: в карточке списка лежит
+    рекламная аннотация на 200 символов, по которой нельзя судить ни об
+    обязанностях, ни о деталях. Вызывается после фильтров, поэтому запросов
+    получается единицы."""
+    for vacancy in vacancies:
+        if not vacancy.url.startswith(RABOTA_BASE):
+            continue
+        try:
+            soup = BeautifulSoup(_get(vacancy.url), "html.parser")
+            time.sleep(PAUSE_BETWEEN_REQUESTS)
+        except Exception:
+            continue
+        body = soup.select_one(".vacancy-card") or soup.select_one("main")
+        if body:
+            vacancy.raw_text = body.get_text(chr(10), strip=True)
+    return vacancies
+
+
 def _enrich_rabota(vacancies: list[Vacancy]) -> list[Vacancy]:
     """Догружает описание с самой страницы вакансии.
 
