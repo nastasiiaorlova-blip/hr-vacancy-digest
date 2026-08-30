@@ -131,6 +131,19 @@ VACANCY_MARKERS = [
     "занятость", "формат работы", "локация:", "уровень дохода",
 ]
 
+# Реклама: подборки каналов, промо конференций, оплаченные посты. Формально
+# они содержат маркеры вакансии — в описании чужого канала легко встречается
+# «резюме» или «вакансии», — но вакансией не являются.
+ADVERT_MARKERS = [
+    "лучшие telegram-каналы", "лучшие телеграм-каналы", "подборка каналов",
+    "собрали для вас", "полезные каналы", "рекомендуем каналы",
+    "подписывайтесь на канал", "реклама.", "erid",
+]
+
+# Подборка каналов упоминает слово «канал» столько раз, сколько в ней пунктов.
+# У настоящей вакансии повода сделать это трижды практически нет.
+MAX_CHANNEL_MENTIONS = 2
+
 # Короткие сообщения — почти всегда реплики в обсуждении, а не вакансия.
 MIN_VACANCY_LENGTH = 200
 
@@ -148,6 +161,10 @@ def vacancy_marker_filter(vacancies: list[Vacancy]) -> list[Vacancy]:
         if len(v.raw_text) < MIN_VACANCY_LENGTH:
             continue
         lowered = v.raw_text.lower()
+        if any(marker in lowered for marker in ADVERT_MARKERS):
+            continue
+        if lowered.count("канал") > MAX_CHANNEL_MENTIONS:
+            continue
         if any(marker in lowered for marker in VACANCY_MARKERS):
             result.append(v)
     return result
