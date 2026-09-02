@@ -237,9 +237,15 @@ check(not apply_filters([event_role]),
       "ивент-маркетинг с HR в названии прошёл за HR-вакансию")
 
 for title in ["HR Brand Manager", "Менеджер по мероприятиям HR-департамента",
-              "Community manager в HR-сообщество"]:
+              "SMM-менеджер HR-бренда"]:
     check(not apply_filters([make(title)]),
           f"HR как предметная область принята за профессию: {title}")
+
+# Комьюнити и HR-Tech владелец считает интересными — отсекать их нельзя.
+for title in ["Community manager в HR-сообщество", "Продакт-менеджер HR Tech",
+              "HR-Tech аналитик продукта"]:
+    check(apply_filters([make(title)]),
+          f"интересное владельцу направление отсеяно: {title}")
 
 
 if failures:
