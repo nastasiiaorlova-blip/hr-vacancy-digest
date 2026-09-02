@@ -8,7 +8,7 @@ from core.sender import send_digest
 from core.storage import filter_unseen, mark_seen
 from core.gig_filters import apply_gig_filters
 from core.scam_flags import mark_duplicated_employers, scam_reasons
-from sources import fl, sites, tg_web
+from sources import companies, fl, sites, tg_web
 
 
 def _load_dotenv(path: str = ".env") -> None:
@@ -32,6 +32,9 @@ SOURCES = [
     ("telegram", tg_web.fetch),
     ("site:rabota", sites.fetch_rabota),
     ("site:global52", sites.fetch_global52),
+    # Карьерные сайты компаний, названных владельцем. Дают профильные вакансии,
+    # но пока все московские — ждём удалённую или нижегородскую позицию.
+    ("company:career", companies.fetch),
 ]
 
 # Подработка — отдельный поток: свои источники, свои фильтры, своё сообщение.
