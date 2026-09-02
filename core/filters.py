@@ -89,6 +89,17 @@ RECRUITING_DUTIES = [
     "от звонка до", "подбор рабочего персонала", "поток кандидатов",
 ]
 
+# Продажа услуг по предоставлению персонала. Это не HR-функция, а торговля
+# рабочей силой: «найди партнёра, который будет брать у нас людей на временную
+# подработку — упаковщики, комплектовщики, грузчики». Одного упоминания
+# достаточно, признаки руководства такое не оправдывают.
+STAFFING_MARKERS = [
+    "аутсорсинг персонал", "аутсорсинга персонал", "аутстаффинг",
+    "предоставление персонал", "предоставлению персонал", "лизинг персонал",
+    "кадровое агентство", "кадрового агентства", "заемный труд", "заёмный труд",
+    "временный персонал", "временного персонала",
+]
+
 # Признаки того, что подбором руководят, а не занимаются руками.
 RECRUITING_OVERSIGHT = [
     "курир", "контроль процесса", "управлять", "управление командой",
@@ -251,6 +262,16 @@ def relevance_filter(vacancies: list[Vacancy]) -> list[Vacancy]:
     return result
 
 
+def _phrase_matches(phrase: str, text: str) -> bool:
+    """Фраза целиком, но с проверкой начала слова.
+
+    Простое вхождение подстроки давало ложные срабатывания: маркер «сорсинг»
+    находился внутри «аутсорсинга». Порядок слов при этом сохраняется —
+    в отличие от _stem_matches, где «при наборе» распалось бы на два слова
+    и совпадало почти с любым текстом."""
+    return re.search(rf"(?<!\w){re.escape(phrase)}", text) is not None
+
+
 def recruiting_filter(vacancies: list[Vacancy]) -> list[Vacancy]:
     """Отсеивает вакансии, где подбор персонала — основная работа.
 
@@ -262,9 +283,11 @@ def recruiting_filter(vacancies: list[Vacancy]) -> list[Vacancy]:
         if not v.raw_text:
             result.append(v)
             continue
-        lowered = v.raw_text.lower()
-        duties = sum(1 for m in RECRUITING_DUTIES if m in lowered)
-        oversight = sum(1 for m in RECRUITING_OVERSIGHT if m in lowered)
+        lowered = f"{v.title} {v.raw_text}".lower()
+        if any(_phrase_matches(m, lowered) for m in STAFFING_MARKERS):
+            continue
+        duties = sum(1 for m in RECRUITING_DUTIES if _phrase_matches(m, lowered))
+        oversight = sum(1 for m in RECRUITING_OVERSIGHT if _phrase_matches(m, lowered))
         if duties > MAX_RECRUITING_DUTIES and oversight < MIN_OVERSIGHT_TO_KEEP:
             continue
         result.append(v)
