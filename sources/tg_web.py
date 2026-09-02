@@ -35,11 +35,15 @@ SALARY_PATTERN = re.compile(
 )
 
 
-def _load_sources(config_path: Path = CHANNELS_CONFIG) -> list[str]:
-    """Возвращает имена каналов и чатов, которые нужно опрашивать."""
+def _load_sources(config_path: Path = CHANNELS_CONFIG,
+                  blocks: tuple[str, ...] = ("channels", "chats")) -> list[str]:
+    """Возвращает имена каналов, которые нужно опрашивать.
+
+    Блоки разные у потоков: основной дайджест читает channels, подработка —
+    gig_channels. Смешивать нельзя, иначе каждый поток разбирает чужие посты."""
     config = yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
     names = []
-    for block in ("channels", "chats"):
+    for block in blocks:
         for entry in config.get(block) or []:
             if entry.get("enabled", True):
                 names.append(entry["name"])
@@ -175,7 +179,12 @@ def fetch_channel(channel: str, cutoff: datetime, max_pages: int = MIN_PAGES) ->
     return vacancies
 
 
-def fetch(days: int = 1) -> list[Vacancy]:
+def fetch_gigs(days: int = 1) -> list[Vacancy]:
+    """Каналы для потока подработки — блок gig_channels в конфиге."""
+    return fetch(days, blocks=("gig_channels",))
+
+
+def fetch(days: int = 1, blocks: tuple[str, ...] = ("channels", "chats")) -> list[Vacancy]:
     """days — за сколько последних суток собирать посты.
 
     Обычный режим — 1. Большее окно нужно для первого запуска, чтобы
@@ -185,7 +194,7 @@ def fetch(days: int = 1) -> list[Vacancy]:
     vacancies: list[Vacancy] = []
     failed: list[str] = []
 
-    for channel in _load_sources():
+    for channel in _load_sources(blocks=blocks):
         try:
             vacancies.extend(fetch_channel(channel, cutoff, max_pages))
         except Exception as exc:

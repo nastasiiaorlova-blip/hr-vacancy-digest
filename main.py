@@ -38,6 +38,7 @@ SOURCES = [
 # Смешивать нельзя: там отбор узкий по направлению, здесь широкий с отсевом
 # явных «нет».
 GIG_SOURCES = [
+    ("подработка:telegram", tg_web.fetch_gigs),
     ("подработка:rabota", sites.fetch_rabota_gigs),
     ("подработка:fl", fl.fetch),
     ("подработка:global52", sites.fetch_global52),
