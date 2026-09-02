@@ -209,6 +209,15 @@ ADVERT_MARKERS = [
 # У настоящей вакансии повода сделать это трижды практически нет.
 MAX_CHANNEL_MENTIONS = 2
 
+# Анонсы мероприятий. Формально проходят: «Онлайн-митап "Оценка руководителей"»
+# содержит и маркер вакансии, и маркер направления. Останавливало их только
+# гео, то есть случайно.
+EVENT_MARKERS = [
+    "митап", "meet-up", "meetup", "вебинар", "воркшоп", "мастер-класс",
+    "конференци", "приглашаем на", "регистрация по ссылке", "regist",
+    "спикеры", "программа мероприятия", "начало в", "трансляци",
+]
+
 # Короткие сообщения — почти всегда реплики в обсуждении, а не вакансия.
 MIN_VACANCY_LENGTH = 200
 
@@ -229,6 +238,10 @@ def vacancy_marker_filter(vacancies: list[Vacancy]) -> list[Vacancy]:
         if any(marker in lowered for marker in ADVERT_MARKERS):
             continue
         if lowered.count("канал") > MAX_CHANNEL_MENTIONS:
+            continue
+        # Два и более признака события: одно слово может встретиться
+        # и в настоящей вакансии («опыт проведения вебинаров»).
+        if sum(1 for m in EVENT_MARKERS if m in lowered) >= 2:
             continue
         if any(marker in lowered for marker in VACANCY_MARKERS):
             result.append(v)
