@@ -2,6 +2,7 @@ import re
 from pathlib import Path
 
 from core.models import Vacancy
+from core.text import phrase_matches, stems
 
 STOPWORDS_PATH = Path(__file__).resolve().parent.parent / "config" / "stopwords.txt"
 
@@ -89,28 +90,22 @@ HR_CONTEXT = [
 # работу. По названию это неразличимо: «HR-менеджер» и «Менеджер по персоналу»
 # бывают и тем, и другим, — поэтому смотрим на обязанности в тексте поста.
 RECRUITING_DUTIES = [
-    "полный цикл подбора", "цикл подбора", "активный поиск", "искать активно",
-    "поиск кандидатов", "поиск специалистов", "закрытие вакансий",
-    "закрыть любую позицию", "закрытые роли", "план по набору", "плана по набору",
-    "план по подбору", "закрытую вакансию", "ведение вакансий", "вакансий в работе",
-    "телефонное интервью", "телефонных интервью", "звонков в день",
-    "первичный скрин", "скрининг", "шорт-лист", "сорсинг", "массовый подбор",
-    "воронка подбора", "опыт в подборе", "опыт по набору", "опыт найма",
-    "составление вакансии", "размещения вакансий", "продажа вакансии",
-    "источников привлечения", "источников размещения", "проведение интервью",
-    "проведение собеседований", "подбор персонала", "набору персонала",
-    "поиска до выхода",
-    # Сдельный массовый подбор: оплата за каждого выведенного кандидата.
-    "адаптированн кандидат", "адаптированного кандидата", "за кандидата",
-    "масс подбор", "массовый подбор", "массового подбора", "при наборе",
-    "от звонка до", "подбор рабочего персонала", "поток кандидатов",
-    # Формы, а не только словарные: «опыт работы в подборе» не совпадал
-    # с «опыт в подборе», «проводить собеседования» — с «проведение
-    # собеседований», «для поиска персонала» — с «подбор персонала».
-    "в подборе", "в подбор", "собеседовани", "поиска персонала",
-    "поиск персонала", "поиску персонала", "работа с откликами",
-    "работе с откликами", "публикация вакансий", "публикацию вакансий",
-    "отчетности по вакансиям", "отчётности по вакансиям",
+    # Сравнение идёт по основам слов (core/text.py), поэтому формы перечислять
+    # не нужно: «в подборе», «подбором», «подбора» дают одну основу. Разные
+    # слова с близким смыслом — подбор, поиск, набор — стемминг не сводит,
+    # их перечисляем.
+    "полный цикл подбора", "цикл подбора", "воронка подбора", "массовый подбор",
+    "подбор персонала", "поиск персонала", "набор персонала",
+    "активный поиск", "поиск кандидатов", "поиск специалистов",
+    "закрытие вакансий", "закрытая вакансия", "ведение вакансий",
+    "вакансий в работе", "план по набору", "план по подбору",
+    "составление вакансии", "размещение вакансий", "публикация вакансий",
+    "продажа вакансии", "отчетность по вакансиям", "работа с откликами",
+    "источники привлечения", "источники размещения",
+    "телефонное интервью", "звонков в день", "проведение интервью",
+    "собеседования", "первичный скрининг", "скрининг", "шорт-лист", "сорсинг",
+    "опыт в подборе", "опыт в наборе", "опыт найма",
+    "адаптированный кандидат", "поток кандидатов", "от звонка до",
 ]
 
 # Продажа услуг по предоставлению персонала. Это не HR-функция, а торговля
@@ -159,12 +154,12 @@ RESUME_HASHTAGS = ["#резюме", "#resume", "#cv", "#ищуработу", "#�
 def _load_stopwords() -> list[str]:
     if not STOPWORDS_PATH.exists():
         return []
-    stems = []
+    words = []
     for line in STOPWORDS_PATH.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith("#"):
-            stems.append(line.lower())
-    return stems
+            words.append(line.lower())
+    return words
 
 
 def _stem_matches(stem: str, text: str) -> bool:
@@ -292,7 +287,8 @@ def relevance_filter(vacancies: list[Vacancy]) -> list[Vacancy]:
         title = v.title.lower()
         # Профессия важнее предметной области: «менеджер по маркетингу
         # (HR Brand)» — это маркетинг, а не HR, сколько бы «HR» в нём ни было.
-        if any(_phrase_matches(role, title) for role in NON_TARGET_ROLES):
+        title_stems = stems(v.title)
+        if any(phrase_matches(role, title_stems) for role in NON_TARGET_ROLES):
             continue
         if any(_stem_matches(stem, title) for stem in STRONG_STEMS):
             result.append(v)
@@ -308,16 +304,6 @@ def relevance_filter(vacancies: list[Vacancy]) -> list[Vacancy]:
     return result
 
 
-def _phrase_matches(phrase: str, text: str) -> bool:
-    """Фраза целиком, но с проверкой начала слова.
-
-    Простое вхождение подстроки давало ложные срабатывания: маркер «сорсинг»
-    находился внутри «аутсорсинга». Порядок слов при этом сохраняется —
-    в отличие от _stem_matches, где «при наборе» распалось бы на два слова
-    и совпадало почти с любым текстом."""
-    return re.search(rf"(?<!\w){re.escape(phrase)}", text) is not None
-
-
 def recruiting_filter(vacancies: list[Vacancy]) -> list[Vacancy]:
     """Отсеивает вакансии, где подбор персонала — основная работа.
 
@@ -329,11 +315,11 @@ def recruiting_filter(vacancies: list[Vacancy]) -> list[Vacancy]:
         if not v.raw_text:
             result.append(v)
             continue
-        lowered = f"{v.title} {v.raw_text}".lower()
-        if any(_phrase_matches(m, lowered) for m in STAFFING_MARKERS):
+        text_stems = stems(f"{v.title} {v.raw_text}")
+        if any(phrase_matches(m, text_stems) for m in STAFFING_MARKERS):
             continue
-        duties = sum(1 for m in RECRUITING_DUTIES if _phrase_matches(m, lowered))
-        oversight = sum(1 for m in RECRUITING_OVERSIGHT if _phrase_matches(m, lowered))
+        duties = sum(1 for m in RECRUITING_DUTIES if phrase_matches(m, text_stems))
+        oversight = sum(1 for m in RECRUITING_OVERSIGHT if phrase_matches(m, text_stems))
         if duties > MAX_RECRUITING_DUTIES and oversight < MIN_OVERSIGHT_TO_KEEP:
             continue
         result.append(v)
