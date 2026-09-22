@@ -13,6 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.filters import apply_filters
+from core.geo import looks_remote, looks_target_city
 from core.models import Vacancy
 from core.storage import fingerprint
 
@@ -172,6 +173,40 @@ check(
     apply_filters([make("HR Business Partner", remote=False, city="Нижний Новгород")]),
     "вакансия из Нижнего Новгорода не прошла гео-фильтр",
 )
+
+# Гибрид. 22 сентября в дайджест попал «HR-директор в производственную
+# компанию «МАКС-Е», Екатеринбург, гибрид 3/2»: в условиях стояло «два дня
+# удалённо», и одного этого слова хватало, чтобы выставить флаг удалёнки,
+# а гео смотрит на флаг и до города не доходит.
+# Решение владельца: гибрид в Нижнем Новгороде подходит, в других городах нет.
+hybrid_ekb = """HR-директор в производственную компанию «МАКС-Е»
+150 000 руб. в месяц · Екатеринбург · гибрид 3/2
+Ищем HR-директора, который вместе с собственником выстроит систему
+управления персоналом.
+Условия:
+• Зарплата 150 000 руб. в месяц.
+• Три дня в офисе в Екатеринбурге, два удалённо.
+"""
+
+check(not looks_remote(hybrid_ekb), "гибрид в другом городе засчитан за удалёнку")
+check(
+    not apply_filters([make("HR-директор", raw=hybrid_ekb * 2,
+                            remote=looks_remote(hybrid_ekb), city=None)]),
+    "гибрид в Екатеринбурге прошёл гео-фильтр",
+)
+
+hybrid_nn = hybrid_ekb.replace("Екатеринбурге", "Нижнем Новгороде").replace(
+    "Екатеринбург", "Нижний Новгород")
+check(
+    apply_filters([make("HR-директор", raw=hybrid_nn * 2,
+                        remote=looks_remote(hybrid_nn),
+                        city="Нижний Новгород" if looks_target_city(hybrid_nn) else None)]),
+    "гибрид в Нижнем Новгороде отсеялся, хотя владелец такое берёт",
+)
+
+# Полная удалёнка от правила про гибрид не пострадала.
+check(looks_remote("Формат работы: удалённо, из любого города."),
+      "полная удалёнка перестала считаться удалёнкой")
 
 # Резюме, помеченное автором хештегом. Пришло 31 августа из jobs_vacancy_cv.
 hashtag_resume = make(
